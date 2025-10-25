@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✍️ AI Video Content Creator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Ensure Inter font and basic styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f5f5; /* Light background */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Custom styles for buttons */
+        .btn-primary {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+        /* Tag styles */
+        .tag-pill {
+            display: inline-block;
+            background-color: #e0f2f1;
+            color: #047857;
+            padding: 0.25rem 0.75rem;
+            margin: 0.3rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border: 1px solid #065f46;
+        }
+        /* Progress Bar styles */
+        .progress-bar-container {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #047857;
+            transition: width 0.05s linear; /* Smooth visual update */
+        }
+        /* Active navigation link style */
+        .active-nav {
+            border-color: #0d9488;
+            color: #0d9488;
+        }
+    </style>
+</head>
+<body class="selection:bg-teal-100 selection:text-teal-800">
+
+    <!-- Header Section -->
+    <header class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto p-4 flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-teal-600">✍️ AI Content Tool</h2>
+            <nav>
+                <!-- Navigation links to switch between tools -->
+                <a href="#" onclick="navigateTo('tag')" id="navTag" 
+                   class="text-gray-600 hover:text-teal-600 font-medium transition duration-150 pb-1 border-b-2 border-teal-600 active-nav">
+                    Tag Generator
+                </a>
+                <a href="#" onclick="navigateTo('description')" id="navDescription" 
+                   class="ml-4 text-gray-600 hover:text-teal-600 font-medium transition duration-150 pb-1 border-b-2 border-transparent">
+                    Description Generator
+                </a>
+                <a href="#" onclick="navigateTo('title')" id="navTitle" 
+                   class="ml-4 text-gray-600 hover:text-teal-600 font-medium transition duration-150 pb-1 border-b-2 border-transparent">
+                    Title Generator
+                </a>
+                <a href="#" onclick="navigateTo('about')" id="navAbout" 
+                   class="ml-4 text-gray-600 hover:text-teal-600 font-medium transition duration-150 pb-1 border-b-2 border-transparent">
+                    About Us
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Section - Dynamic content loaded here -->
+    <main class="flex-grow flex items-center justify-center p-4 py-10">
+        <!-- The content of this div will be dynamically replaced by JS -->
+        <div class="w-full max-w-3xl bg-white rounded-xl shadow-2xl p-6 md:p-10 border border-gray-100" id="toolCard">
+            <!-- Initial content will be injected by renderTagGenerator() -->
+        </div>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white mt-auto p-4">
+        <div class="max-w-7xl mx-auto text-center text-sm">
+            <p>&copy; 2025 AI Video Content Creator. Powered by Ratul.</p>
+            <p class="mt-1 text-gray-400" id="about">Tip: Press Enter in the input field to generate content quickly.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Use localStorage to persist the API Key
+        let API_KEY = localStorage.getItem('geminiApiKey') || "";
+        const API_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
+        const MAX_RETRIES = 5;
+        let currentPage = 'tag'; 
+        let progressInterval;
+        
+        // --- API Key Management and UI ---
+
+        function renderApiKeyInput() {
+            // Check if API_KEY is set in memory or localStorage
+            if (API_KEY) {
+                // If key is set, render the main tool page
+                if (currentPage === 'tag') renderTagGenerator();
+                else if (currentPage === 'description') renderDescriptionGenerator();
+                else if (currentPage === 'title') renderTitleGenerator();
+                else if (currentPage === 'about') renderAboutPage();
+                return;
+            }
+
+            // If key is not set, force the Key input view
+            document.getElementById('toolCard').innerHTML = `
+                <div class="text-center p-6 md:p-10">
+                    <h1 class="text-3xl font-extrabold text-red-600 mb-4">
+                        ⚠️ API Key প্রয়োজন (API Key Required)
+                    </h1>
+                    <p class="text-gray-700 mb-6">
+                        টুলটি ব্যবহার করার জন্য আপনাকে আপনার **Gemini API Key** প্রবেশ করতে হবে। এটি Google AI Studio থেকে তৈরি করতে পারেন।
+                    </p>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                       class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                        API Key তৈরি করুন (Get Key)
+                    </a>
+                    
+                    <div class="mt-8">
+                        <label for="apiKeyInput" class="block text-lg font-semibold text-gray-700 mb-2 text-left">
+                            আপনার API Key প্রবেশ করান:
+                        </label>
+                        <input type="password" id="apiKeyInput"
+                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-500 transition duration-150"
+                            placeholder="AIzaSy..."
+                            onkeydown="if(event.key === 'Enter') saveApiKey()">
+                    </div>
+
+                    <button id="saveKeyButton" onclick="saveApiKey()"
+                            class="w-full mt-4 bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-lg btn-primary focus:outline-none focus:ring-4 focus:ring-teal-300">
+                        সেভ করুন এবং শুরু করুন (Save & Start)
+                    </button>
+                    <p id="keyError" class="text-red-500 text-center mt-4 hidden font-medium">⚠️ দয়া করে সঠিক API Key দিন।</p>
+                </div>
+            `;
+            // Ensure navigation is not highlighted when Key is missing
+            document.getElementById('navTag').classList.remove('active-nav', 'border-teal-600');
+            document.getElementById('navTag').classList.add('border-transparent');
+        }
+
+        function saveApiKey() {
+            const inputElement = document.getElementById('apiKeyInput');
+            const keyError = document.getElementById('keyError');
+            const key = inputElement.value.trim();
+
+            if (key.length > 30 && key.startsWith('AIzaSy')) {
+                API_KEY = key;
+                localStorage.setItem('geminiApiKey', key);
+                keyError.classList.add('hidden');
+                alertBox('API Key সফলভাবে সংরক্ষিত হয়েছে! আপনি এখন টুলটি ব্যবহার করতে পারবেন।', 'success');
+                // Reload or navigate to the main tool page
+                navigateTo('tag');
+            } else {
+                keyError.textContent = "⚠️ এটি একটি বৈধ Gemini API Key নয়।";
+                keyError.classList.remove('hidden');
+                inputElement.focus();
+            }
+        }
+        
+        // Custom Alert/Message Box
+        function alertBox(message, type = 'info') {
+            const toolCard = document.getElementById('toolCard');
+            let bgColor = 'bg-blue-100';
+            let textColor = 'text-blue-800';
+            let title = 'Information';
+
+            if (type === 'error') {
+                bgColor = 'bg-red-100';
+                textColor = 'text-red-800';
+                title = 'Error';
+            } else if (type === 'success') {
+                bgColor = 'bg-green-100';
+                textColor = 'text-green-800';
+                title = 'Success';
+            }
+
+            const alertHtml = `
+                <div id="customAlert" class="${bgColor} ${textColor} p-4 rounded-lg mb-4 border border-opacity-50" role="alert">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold">${title}:</span>
+                        <button onclick="document.getElementById('customAlert').remove()" class="text-xl font-bold leading-none">&times;</button>
+                    </div>
+                    <p class="mt-1 text-sm">${message}</p>
+                </div>
+            `;
+
+            const existingAlert = document.getElementById('customAlert');
+            if (existingAlert) existingAlert.remove();
+            
+            toolCard.insertAdjacentHTML('afterbegin', alertHtml);
+
+            // Auto-remove success/info messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    const alert = document.getElementById('customAlert');
+                    if (alert) alert.remove();
+                }, 4000);
+            }
+        }
+
+
+        // --- Progress Bar Logic ---
+
+        function simulateProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const loadingText = document.getElementById('loadingText');
+            let progress = 0;
+            const target = 95; 
+
+            if (progressInterval) clearInterval(progressInterval);
+
+            progressInterval = setInterval(() => {
+                if (progress < target) {
+                    progress += Math.random() * (2 - 0.5) + 0.5; 
+                    if (progress > target) progress = target;
+                    progressBar.style.width = `${progress}%`;
+                    loadingText.textContent = `Generating content... ${Math.floor(progress)}%`;
+                } else if (progress >= target) {
+                    progress += 0.1; 
+                    progressBar.style.width = `${progress}%`;
+                    loadingText.textContent = `Finalizing... ${Math.floor(progress)}%`;
+                }
+            }, 50);
+        }
+
+        function stopProgress(success) {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+            const progressBar = document.getElementById('progressBar');
+            const loadingText = document.getElementById('loadingText');
+            const loadingContainer = document.getElementById('loadingProgress');
+
+            if (success) {
+                progressBar.style.width = '100%';
+                progressBar.classList.add('bg-green-500'); 
+                progressBar.classList.remove('bg-teal-600');
+                loadingText.textContent = `Completed! 100%`;
+            } 
+
+            setTimeout(() => {
+                loadingContainer.classList.add('hidden');
+                progressBar.style.width = '0%';
+                progressBar.classList.remove('bg-green-500');
+                progressBar.classList.add('bg-teal-600'); 
+            }, success ? 500 : 0);
+        }
+
+
+        // Helper function to update the UI message areas
+        function updateUI(status) {
+            const errorMessage = document.getElementById('errorMessage');
+            const loadingContainer = document.getElementById('loadingProgress');
+            const generateButton = document.getElementById('generateButton');
+            const copyButton = document.getElementById('copyButton');
+
+            if (status === 'loading') {
+                loadingContainer.classList.remove('hidden');
+                errorMessage.classList.add('hidden');
+                generateButton.disabled = true;
+                copyButton && copyButton.classList.add('hidden');
+                simulateProgress(); 
+            } else if (status === 'done') {
+                stopProgress(true); 
+                generateButton.disabled = false;
+                copyButton && copyButton.classList.remove('hidden');
+            } else if (status === 'error') {
+                stopProgress(false); 
+                errorMessage.classList.remove('hidden');
+                generateButton.disabled = false;
+                copyButton && copyButton.classList.add('hidden');
+            } else { // 'reset'
+                const existingAlert = document.getElementById('customAlert');
+                if (existingAlert) existingAlert.remove();
+                
+                document.getElementById('copyMessage').classList.add('hidden');
+                errorMessage.classList.add('hidden');
+                loadingContainer.classList.add('hidden');
+                generateButton.disabled = false;
+                copyButton && copyButton.classList.add('hidden');
+                const titleInput = document.getElementById('titleInput');
+                if(titleInput) titleInput.focus();
+            }
+        }
+
+        // --- Navigation Logic ---
+        function navigateTo(page) {
+            // If API Key is missing, always show the input page first
+            if (!API_KEY && page !== 'about') {
+                currentPage = page; // Store the intended page
+                renderApiKeyInput();
+                return;
+            }
+
+            currentPage = page;
+            const card = document.getElementById('toolCard');
+            card.innerHTML = '';
+            
+            // Update Navigation Highlighting
+            const navs = ['navTag', 'navDescription', 'navTitle', 'navAbout'];
+            navs.forEach(id => {
+                const element = document.getElementById(id);
+                if(element) {
+                    element.classList.remove('active-nav', 'border-teal-600');
+                    element.classList.add('border-transparent');
+                }
+            });
+
+            const currentNav = document.getElementById(`nav${page.charAt(0).toUpperCase() + page.slice(1)}`);
+            if (currentNav) {
+                currentNav.classList.add('active-nav', 'border-teal-600');
+            }
+
+            if (page === 'tag') {
+                renderTagGenerator();
+            } else if (page === 'description') {
+                renderDescriptionGenerator();
+            } else if (page === 'title') {
+                renderTitleGenerator();
+            } else if (page === 'about') {
+                renderAboutPage(); 
+            }
+        }
+
+        // Function to handle Enter key press (used by all tools)
+        function handleEnter(event) {
+            if (event.key === 'Enter' && (currentPage !== 'about') && API_KEY) {
+                event.preventDefault(); 
+                if (currentPage === 'tag') {
+                    generateTags();
+                } else if (currentPage === 'description') {
+                    generateDescription();
+                } else if (currentPage === 'title') {
+                    generateTitle();
+                }
+            }
+        }
+        
+        // --- Renderer Functions ---
+
+        function renderTagGenerator() {
+            document.getElementById('toolCard').innerHTML = `
+                <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 text-center">
+                    Video Tag Generator
+                </h1>
+                <p class="text-gray-600 mb-8 text-center max-w-xl mx-auto">
+                    Quickly generate up to 25 highly relevant and trending tags for your video title using AI.
+                </p>
+
+                <div class="mb-6">
+                    <label for="titleInput" class="block text-lg font-semibold text-gray-700 mb-2">
+                        Enter Your Video Title Here:
+                    </label>
+                    <input type="text" id="titleInput"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-teal-500 transition duration-150"
+                        placeholder="Enter an engaging title for your video..."
+                        onkeydown="handleEnter(event)">
+                </div>
+
+                <button id="generateButton" onclick="generateTags()"
+                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-lg btn-primary focus:outline-none focus:ring-4 focus:ring-teal-300 flex items-center justify-center">
+                    Generate Tags
+                </button>
+                
+                <p id="errorMessage" class="text-red-500 text-center mt-4 hidden font-medium">⚠️ Title is required to generate tags.</p>
+                <div id="loadingProgress" class="mt-4 hidden">
+                    <p id="loadingText" class="text-teal-600 text-center font-medium mb-1">Generating content... 0%</p>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar bg-teal-600"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">
+                        Suggested Tags: 
+                        <button id="copyButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-md text-sm ml-2 hidden" onclick="copyContent('tagsOutput')">
+                            Copy All
+                        </button>
+                    </h2>
+                    <div id="tagsOutput" class="min-h-[50px] text-gray-600 flex flex-wrap items-center">
+                        Your generated keyword tags will appear here.
+                    </div>
+                    <p id="copyMessage" class="text-sm text-green-600 text-center mt-4 hidden font-medium"></p>
+                </div>
+            `;
+            updateUI('reset');
+        }
+
+        function renderDescriptionGenerator() {
+            document.getElementById('toolCard').innerHTML = `
+                <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 text-center">
+                    Video Description Generator
+                </h1>
+                <p class="text-gray-600 mb-8 text-center max-w-xl mx-auto">
+                    Get a concise, SEO-friendly video description in your chosen language using AI.
+                </p>
+
+                <div class="mb-6">
+                    <label for="titleInput" class="block text-lg font-semibold text-gray-700 mb-2">
+                        Enter Your Video Title Here:
+                    </label>
+                    <input type="text" id="titleInput"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-teal-500 transition duration-150"
+                        placeholder="Enter the title for which you need a description..."
+                        onkeydown="handleEnter(event)">
+                </div>
+                
+                <div class="mb-6">
+                    <label for="languageSelect" class="block text-lg font-semibold text-gray-700 mb-2">
+                        Choose Output Language:
+                    </label>
+                    <select id="languageSelect" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-teal-500 transition duration-150">
+                        <option value="English">English</option>
+                        <option value="Bengali">Bangla (বাংলা)</option>
+                    </select>
+                </div>
+
+                <button id="generateButton" onclick="generateDescription()"
+                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-lg btn-primary focus:outline-none focus:ring-4 focus:ring-teal-300 flex items-center justify-center">
+                    Generate Description
+                </button>
+                
+                <p id="errorMessage" class="text-red-500 text-center mt-4 hidden font-medium">⚠️ Title is required to generate a description.</p>
+                <div id="loadingProgress" class="mt-4 hidden">
+                    <p id="loadingText" class="text-teal-600 text-center font-medium mb-1">Generating content... 0%</p>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar bg-teal-600"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
+                        Generated Description: 
+                        <button id="copyButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-md text-sm ml-2 hidden" onclick="copyContent('descriptionOutput')">
+                            Copy Text
+                        </button>
+                    </h2>
+                    <textarea id="descriptionOutput" readonly
+                        class="w-full min-h-[150px] p-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none">Your generated description will appear here.</textarea>
+                    <p id="copyMessage" class="text-sm text-green-600 text-center mt-4 hidden font-medium"></p>
+                </div>
+            `;
+            updateUI('reset');
+        }
+
+        function renderTitleGenerator() {
+             document.getElementById('toolCard').innerHTML = `
+                <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 text-center">
+                    Video Title Generator
+                </h1>
+                <p class="text-gray-600 mb-8 text-center max-w-xl mx-auto">
+                    Enter keywords or a topic idea to get 5 catchy and click-worthy video title suggestions using AI.
+                </p>
+
+                <div class="mb-6">
+                    <label for="titleInput" class="block text-lg font-semibold text-gray-700 mb-2">
+                        Enter Keywords or Topic Idea:
+                    </label>
+                    <input type="text" id="titleInput"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-teal-500 transition duration-150"
+                        placeholder="e.g., Cooking in 5 minutes, Cat fails compilation"
+                        onkeydown="handleEnter(event)">
+                </div>
+
+                <button id="generateButton" onclick="generateTitle()"
+                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-lg btn-primary focus:outline-none focus:ring-4 focus:ring-teal-300 flex items-center justify-center">
+                    Generate Titles
+                </button>
+                
+                <p id="errorMessage" class="text-red-500 text-center mt-4 hidden font-medium">⚠️ Keywords/Idea is required to generate titles.</p>
+                <div id="loadingProgress" class="mt-4 hidden">
+                    <p id="loadingText" class="text-teal-600 text-center font-medium mb-1">Generating content... 0%</p>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar bg-teal-600"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
+                        Suggested Titles: 
+                        <button id="copyButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-md text-sm ml-2 hidden" onclick="copyContent('titleOutput')">
+                            Copy All
+                        </button>
+                    </h2>
+                    <textarea id="titleOutput" readonly
+                        class="w-full min-h-[150px] p-2 bg-white border border-gray-300 rounded-lg text-gray-700 text-sm focus:outline-none">5 title suggestions will appear here.</textarea>
+                    <p id="copyMessage" class="text-sm text-green-600 text-center mt-4 hidden font-medium"></p>
+                </div>
+            `;
+            updateUI('reset');
+        }
+
+        function renderAboutPage() {
+            document.getElementById('toolCard').innerHTML = `
+                <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4 text-center">
+                    About AI Content Tool ℹ️
+                </h1>
+                <p class="text-gray-600 mb-8 text-center max-w-xl mx-auto">
+                    আপনার ভিডিও কন্টেন্ট তৈরি প্রক্রিয়াকে সহজ ও দ্রুত করতে আমরা সাহায্য করি।
+                </p>
+                
+                <div class="space-y-6 text-gray-700 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                    <div>
+                        <h2 class="text-2xl font-bold text-teal-600 mb-2">Our Mission (আমাদের লক্ষ্য)</h2>
+                        <p>We aim to simplify the content creation process for video makers everywhere. Whether you're a seasoned professional or just starting out, our AI-powered tools help you save time, boost visibility, and focus on what you do best: creating amazing videos.</p>
+                        <p class="mt-2 text-sm italic text-gray-500">
+                        ভিডিও নির্মাতাদের জন্য কন্টেন্ট তৈরি প্রক্রিয়া সহজ করাই আমাদের মূল লক্ষ্য।
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <h2 class="text-2xl font-bold text-teal-600 mb-2">Features Included (সুবিধা সমূহ)</h2>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>
+                                <span class="font-semibold">Tag Generator:</span> instantly create up to 25 highly relevant and trending video tags.
+                            </li>
+                            <li>
+                                <span class="font-semibold">Description Generator:</span> Get concise, SEO-friendly video descriptions in both **English** and **Bangla (বাংলা)**.
+                            </li>
+                            <li>
+                                <span class="font-semibold">Title Generator:</span> Generate 5 catchy and click-worthy title suggestions from simple keywords or ideas.
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <p class="text-center pt-4 italic text-gray-500">
+                        This tool is powered by the **Gemini** language model.
+                    </p>
+                </div>
+            `;
+        }
+
+
+        // --- Core API Functions ---
+
+        async function callGeminiApi(systemPrompt, userQuery) {
+            // Check for API Key before calling
+            if (!API_KEY) {
+                updateUI('error');
+                document.getElementById('errorMessage').textContent = "⚠️ API Key সেট করা নেই। দয়া করে Key ইনপুট করুন।";
+                renderApiKeyInput(); // Show the input prompt again
+                return null;
+            }
+
+            const apiUrl = `${API_BASE_URL}${API_KEY}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            let resultText = null;
+            
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        if (response.status === 400 || response.status === 403) {
+                             // Likely an invalid key or usage limit issue
+                            throw new Error(`API Error: ${errorBody.error?.message || 'Invalid API Key or Usage Limit Reached.'}`);
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    resultText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (resultText) {
+                        break; 
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i === MAX_RETRIES - 1) {
+                        document.getElementById('errorMessage').textContent = `⚠️ কন্টেন্ট তৈরি করা সম্ভব হয়নি: ${error.message}`;
+                        updateUI('error');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                }
+            }
+            return resultText;
+        }
+
+        async function generateTags() {
+            const title = document.getElementById('titleInput').value.trim();
+            const tagsOutput = document.getElementById('tagsOutput');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            tagsOutput.innerHTML = "";
+            if (title.length === 0) {
+                tagsOutput.innerHTML = "Please enter your video title to generate tags.";
+                errorMessage.textContent = `⚠️ Title is required to generate tags.`;
+                updateUI('error');
+                return;
+            }
+
+            updateUI('loading');
+
+            const systemPrompt = `You are a professional YouTube/SEO Keyword Generator. Your task is to analyze the user-provided video title and generate a single, non-numbered list of up to 25 highly relevant and trending tags. The output must be a single string where each tag is separated by a comma and a space. Do not include any introductory or concluding text, only the comma-separated list of tags. Ensure the tags cover single words, phrases, and long-tail keywords relevant to the title. Maintain the original language of the title (Bengali or English).`;
+            
+            const userQuery = `Video Title: "${title}"`;
+
+            const text = await callGeminiApi(systemPrompt, userQuery);
+
+            if (text) {
+                updateUI('done');
+                const rawTags = text.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+                const resultTags = Array.from(new Set(rawTags));
+                
+                if (resultTags.length > 0) {
+                    const tagHtml = resultTags.map(tag => `<span class="tag-pill">${tag}</span>`).join('');
+                    tagsOutput.innerHTML = tagHtml;
+                } else {
+                    tagsOutput.innerHTML = "No relevant tags were found.";
+                }
+            } else if (API_KEY) {
+                tagsOutput.innerHTML = "No relevant tags were found.";
+            }
+        }
+
+        async function generateDescription() {
+            const title = document.getElementById('titleInput').value.trim();
+            const language = document.getElementById('languageSelect').value;
+            const descriptionOutput = document.getElementById('descriptionOutput');
+            const errorMessage = document.getElementById('errorMessage');
+
+            descriptionOutput.value = "";
+            if (title.length === 0) {
+                descriptionOutput.value = "Please enter your video title to generate the description.";
+                errorMessage.textContent = `⚠️ Title is required to generate a description.`;
+                updateUI('error');
+                return;
+            }
+
+            updateUI('loading');
+
+            const systemPrompt = `You are an expert SEO content writer for YouTube. Your task is to write a concise, compelling, and SEO-friendly video description based on the user's video title. The description MUST be in ${language} and limited to a maximum of 3 to 4 sentences/lines. The description should include relevant keywords naturally and end with a call to action. Output only the description text, formatted with line breaks for readability.`;
+            
+            const userQuery = `Video Title: "${title}"`;
+
+            const resultText = await callGeminiApi(systemPrompt, userQuery);
+
+            if (resultText) {
+                updateUI('done');
+                descriptionOutput.value = resultText;
+            } else if (API_KEY) {
+                descriptionOutput.value = "No description could be generated.";
+            }
+        }
+        
+        async function generateTitle() {
+            const idea = document.getElementById('titleInput').value.trim();
+            const titleOutput = document.getElementById('titleOutput');
+            const errorMessage = document.getElementById('errorMessage');
+
+            titleOutput.value = "";
+            if (idea.length === 0) {
+                titleOutput.value = "Please enter your keywords or topic idea to generate titles.";
+                errorMessage.textContent = `⚠️ Keywords/Idea is required to generate titles.`;
+                updateUI('error');
+                return;
+            }
+
+            updateUI('loading');
+
+            const systemPrompt = `You are an expert YouTube title generator. Your task is to generate 5 distinct, highly engaging, and SEO-friendly video titles based on the user's idea or keywords. Present the titles as a numbered list (1. 2. 3. 4. 5.). Output only the numbered list, without any introductory or concluding text.`;
+            
+            const userQuery = `Topic or Keywords: "${idea}"`;
+
+            const resultText = await callGeminiApi(systemPrompt, userQuery);
+
+            if (resultText) {
+                updateUI('done');
+                titleOutput.value = resultText;
+            } else if (API_KEY) {
+                titleOutput.value = "No titles could be generated.";
+            }
+        }
+        
+        // --- Copy Logic (Unified) ---
+
+        function copyContent(elementId) {
+            const element = document.getElementById(elementId);
+            const copyMessageElement = document.getElementById('copyMessage');
+            
+            let contentToCopy = '';
+            
+            if (elementId === 'tagsOutput') {
+                const tags = Array.from(element.querySelectorAll('.tag-pill')).map(tag => tag.textContent);
+                if (tags.length === 0) {
+                     copyMessageElement.textContent = "No tags to copy!";
+                     copyMessageElement.classList.remove('hidden');
+                     return;
+                }
+                contentToCopy = tags.join(', ');
+                copyMessageElement.textContent = `${tags.length} tags successfully copied!`;
+                
+            } else if (elementId === 'descriptionOutput' || elementId === 'titleOutput') {
+                contentToCopy = element.value;
+                 if (contentToCopy.length < 10 || contentToCopy.includes("will appear here")) {
+                     copyMessageElement.textContent = `No content to copy!`;
+                     copyMessageElement.classList.remove('hidden');
+                     return;
+                }
+                copyMessageElement.textContent = `${elementId === 'titleOutput' ? 'Titles' : 'Description'} successfully copied!`;
+            }
+
+            try {
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = contentToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+
+                copyMessageElement.classList.remove('hidden');
+                setTimeout(() => {
+                    copyMessageElement.classList.add('hidden');
+                }, 2500);
+
+            } catch (err) {
+                console.error('Copy failed:', err);
+                copyMessageElement.textContent = "Copy failed.";
+                copyMessageElement.classList.remove('hidden');
+            }
+        }
+
+        // Initialize the app on load
+        window.onload = () => {
+            renderApiKeyInput(); // Start by checking for/requesting the API Key
+        };
+        
+        // Make functions global
+        window.generateTags = generateTags;
+        window.generateDescription = generateDescription;
+        window.generateTitle = generateTitle;
+        window.copyContent = copyContent;
+        window.handleEnter = handleEnter;
+        window.navigateTo = navigateTo; 
+        window.saveApiKey = saveApiKey;
+    </script>
+</body>
+</html>
